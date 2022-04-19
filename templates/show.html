@@ -1,0 +1,20 @@
+<html>  
+<head>  
+<title>Results</title>  
+</head>  
+<body>  
+<p id="p1">MP3 Files</p>  
+<script language="javascript">
+var dict = {{urls|safe}}
+for(var key in dict) {
+  var value = dict[key];
+  document.write(value.link('/'+key));
+  document.write("-------");
+  document.write("delete".link('/delete/'+key));
+  document.write("<br>");
+}
+</script>
+</body>  
+</html>
+
+
