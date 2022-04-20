@@ -1,22 +1,14 @@
 import time
 import os
-import re
 import eyed3
 import sqlite3
-from flask import *  
+from flask import *
+from werkzeug.utils import secure_filename
+
 app = Flask(__name__) 
 
 @app.route('/')  
 def options():
-    conn = sqlite3.connect('./database/test.db')
-    print ("Opened database successfully");
-    c = conn.cursor()
-    c.execute(''' SELECT count(name) FROM sqlite_master WHERE type='table' AND name='MPT' ''')
-    if c.fetchone()[0]!=1:
-        print('Table does not exists.')
-        conn.execute('''CREATE TABLE MPT (NAME TEXT NOT NULL,META TEXT NOT NULL);''')
-        print ("Table created successfully")
-    conn.close() 
     return render_template("options.html")
 
 @app.route('/upload')  
@@ -24,13 +16,14 @@ def upload():
     return render_template("upload.html")  
  
 @app.route('/upload_success', methods = ['POST'])  
-def upload_success():  
+def upload_success():
+    status=""
     if request.method == 'POST':  
         f = request.files['file']  
-        fn=str(time.time())+"_"+f.filename
+        fn=str(time.time())+"_"+secure_filename(f.filename)
         f.save("./audio_files/"+fn)
         audio=eyed3.load("./audio_files/"+fn)
-        aat= audio.tag.artist+" # "+audio.tag.album+" # "+audio.tag.title+" # "+f.filename
+        aat= audio.tag.artist+" # "+audio.tag.album+" # "+audio.tag.title+" # "+secure_filename(f.filename)
         try:
             conn = sqlite3.connect("./database/test.db")
             cur = conn.cursor()
@@ -40,9 +33,10 @@ def upload_success():
         except:
             conn.rollback()
             print("error in insert operation")
+            status="Not"
         finally:
             conn.close() 
-            return render_template("success.html", name = f.filename)
+            return render_template("success.html", name=secure_filename(f.filename), status=status)
 
 @app.route('/search')  
 def search():  
@@ -78,6 +72,7 @@ def play(name):
 
 @app.route('/delete/<name>')
 def delete(name):
+    status=""
     try:
         conn = sqlite3.connect('./database/test.db')
         cursor = conn.cursor()
@@ -88,16 +83,35 @@ def delete(name):
         cursor.close()
     except sqlite3.Error as error:
         print("Failed to delete:", error)
+        status="Not"
     finally:
         if conn:
             conn.close()
             print("Connection is closed")
-    os.remove("./audio_files/"+name)
-    return render_template("success.html",name=name)
+    if not os.path.exists("./audio_files/"+name):
+        status="Already"
+    if status=="":
+        os.remove("./audio_files/"+name)
+    return render_template("success.html",name=name, status=status)
 
 if __name__ == '__main__':
     if not os.path.exists("database"):
         os.makedirs("database")
     if not os.path.exists("audio_files"):
         os.makedirs("audio_files")
+    try:
+        conn = sqlite3.connect('./database/test.db')
+        print ("Opened database successfully");
+        c = conn.cursor()
+        c.execute(''' SELECT count(name) FROM sqlite_master WHERE type='table' AND name='MPT' ''')
+        if c.fetchone()[0]!=1:
+            print('Table does not exists.')
+            conn.execute('''CREATE TABLE MPT (NAME TEXT NOT NULL,META TEXT NOT NULL);''')
+            print ("Table created successfully")
+    except sqlite3.Error as error:
+        print("Failed:", error)
+    finally:
+        if conn:
+            conn.close()
+            print("Connection is closed")
     app.run(debug = True)
