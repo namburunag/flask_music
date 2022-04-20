@@ -7,8 +7,8 @@ from flask import *
 app = Flask(__name__) 
 
 @app.route('/')  
-def options(): 
-    conn = sqlite3.connect('test.db')
+def options():
+    conn = sqlite3.connect('./database/test.db')
     print ("Opened database successfully");
     c = conn.cursor()
     c.execute(''' SELECT count(name) FROM sqlite_master WHERE type='table' AND name='MPT' ''')
@@ -28,20 +28,20 @@ def upload_success():
     if request.method == 'POST':  
         f = request.files['file']  
         fn=str(time.time())+"_"+f.filename
-        f.save(fn)
+        f.save("./audio_files/"+fn)
+        audio=eyed3.load("./audio_files/"+fn)
+        aat= audio.tag.artist+" # "+audio.tag.album+" # "+audio.tag.title
         try:
-            audio=eyed3.load(fn)
-            aat= audio.tag.artist+" # "+audio.tag.album+" # "+audio.tag.title         
-            with sqlite3.connect("test.db") as con:
-                cur = con.cursor()
-                cur.execute("INSERT INTO MPT (NAME, META) VALUES (?,?)",(fn, aat))            
-                con.commit()
-                msg = "Record successfully added"
+            conn = sqlite3.connect("./database/test.db")
+            cur = conn.cursor()
+            cur.execute("INSERT INTO MPT (NAME, META) VALUES (?,?)",(fn, aat))            
+            conn.commit()
+            msg = "Record successfully added"
         except:
-            con.rollback()
+            conn.rollback()
             msg = "error in insert operation"
         finally:
-            con.close() 
+            conn.close() 
             return render_template("success.html", name = f.filename)
 
 @app.route('/search')  
@@ -51,17 +51,22 @@ def search():
 @app.route('/show')  
 def show():  
     mptsearch=request.args.get('mptsearch')
-    conn = sqlite3.connect('test.db')
-    conn.row_factory = sqlite3.Row
     w=""
     if mptsearch!=None:
         w="WHERE "
         m=mptsearch.split()
         m=['META LIKE "%'+i+'%"' for i in m]
         w=w+" AND ".join(m)
-    cur = conn.cursor()
-    l=cur.execute('SELECT * FROM MPT '+w).fetchall()
-    conn.close()
+    try:
+        conn = sqlite3.connect('./database/test.db')
+        cur = conn.cursor()
+        l=cur.execute('SELECT * FROM MPT '+w).fetchall()
+    except sqlite3.Error as error:
+        print("Failed to delete:", error)
+    finally:
+        if conn:
+            conn.close()
+            print("Connection is closed")
     urls={}
     for i in l:
         urls[i[0]]=i[1]
@@ -69,12 +74,12 @@ def show():
 
 @app.route('/<name>')
 def play(name):
-    return send_from_directory('./', name)
+    return send_from_directory('./audio_files', name)
 
 @app.route('/delete/<name>')
 def delete(name):
     try:
-        conn = sqlite3.connect('test.db')
+        conn = sqlite3.connect('./database/test.db')
         cursor = conn.cursor()
         print("Connected to database")
         cursor.execute("DELETE from MPT where NAME="+"'"+name+"'")
@@ -87,8 +92,12 @@ def delete(name):
         if conn:
             conn.close()
             print("Connection is closed")
-    os.remove("./"+name)
+    os.remove("./audio_files/"+name)
     return render_template("success.html",name=name)
 
-if __name__ == '__main__':  
+if __name__ == '__main__':
+    if not os.path.exists("database"):
+        os.makedirs("database")
+    if not os.path.exists("audio_files"):
+        os.makedirs("audio_files")
     app.run(debug = True)
