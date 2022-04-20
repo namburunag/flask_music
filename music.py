@@ -30,16 +30,16 @@ def upload_success():
         fn=str(time.time())+"_"+f.filename
         f.save("./audio_files/"+fn)
         audio=eyed3.load("./audio_files/"+fn)
-        aat= audio.tag.artist+" # "+audio.tag.album+" # "+audio.tag.title
+        aat= audio.tag.artist+" # "+audio.tag.album+" # "+audio.tag.title+" # "+f.filename
         try:
             conn = sqlite3.connect("./database/test.db")
             cur = conn.cursor()
             cur.execute("INSERT INTO MPT (NAME, META) VALUES (?,?)",(fn, aat))            
             conn.commit()
-            msg = "Record successfully added"
+            print("Record successfully added")
         except:
             conn.rollback()
-            msg = "error in insert operation"
+            print("error in insert operation")
         finally:
             conn.close() 
             return render_template("success.html", name = f.filename)
